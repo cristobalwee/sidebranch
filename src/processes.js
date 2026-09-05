@@ -14,6 +14,7 @@
 
 import net from "node:net";
 import http from "node:http";
+import https from "node:https";
 import { spawn } from "node:child_process";
 
 import { splitCommand, tailText } from "./install.js";
@@ -39,18 +40,27 @@ export function portIsFree(port) {
   });
 }
 
+export function probeGet(paneOrigin, options, onResponse) {
+  if (paneOrigin?.scheme !== "https") return http.get({ host: "127.0.0.1", ...options }, onResponse);
+  return https.get(
+    { host: "127.0.0.1", servername: paneOrigin.hostname, rejectUnauthorized: false, ...options },
+    onResponse
+  );
+}
+
 /**
  * Probe an HTTP endpoint until it answers or timeout.
  * Any HTTP status counts as "up" by default — a 404 or 500 still proves the
  * server is accepting connections; which statuses count is configurable.
  */
-export function waitForReady({ port, path: probePath = "/", statuses = null, timeoutMs = 120_000, intervalMs = 400, signal }) {
+export function waitForReady({ port, path: probePath = "/", statuses = null, timeoutMs = 120_000, intervalMs = 400, signal, paneOrigin = null }) {
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve, reject) => {
     const attempt = () => {
       if (signal?.aborted) return reject(new Error("aborted"));
-      const req = http.get(
-        { host: "127.0.0.1", port, path: probePath, timeout: 3000 },
+      const req = probeGet(
+        paneOrigin,
+        { port, path: probePath, timeout: 3000 },
         (res) => {
           res.resume();
           const ok = statuses ? statuses.includes(res.statusCode) : true;
@@ -84,11 +94,12 @@ export function waitForReady({ port, path: probePath = "/", statuses = null, tim
  * is enough to replace a blank rectangle with a sentence naming the header.
  * Never throws — an unreachable server is not a framing verdict.
  */
-export function probeFraming({ port, path: probePath = "/", daemonPort }) {
+export function probeFraming({ port, path: probePath = "/", daemonPort, paneOrigin = null }) {
   return new Promise((resolve) => {
     const done = (v) => resolve(v);
-    const req = http.get(
-      { host: "127.0.0.1", port, path: probePath, timeout: 3000 },
+    const req = probeGet(
+      paneOrigin,
+      { port, path: probePath, timeout: 3000 },
       (res) => {
         res.resume();
         done(readFramingHeaders(res.headers, daemonPort));
@@ -121,7 +132,7 @@ export function readFramingHeaders(headers, daemonPort) {
 }
 
 export class DevServer {
-  constructor({ command, cwd, port, env = {}, readyPath = "/", readyStatuses = null, daemonPort = null }) {
+  constructor({ command, cwd, port, env = {}, readyPath = "/", readyStatuses = null, daemonPort = null, paneOrigin = null }) {
     if (!isValidPort(port)) throw new Error(`Invalid port ${port}`);
     this.command = command;
     this.cwd = cwd;
@@ -130,6 +141,7 @@ export class DevServer {
     this.readyPath = readyPath;
     this.readyStatuses = readyStatuses;
     this.daemonPort = daemonPort;
+    this.paneOrigin = paneOrigin;
     this.child = null;
     this.state = "stopped"; // stopped | starting | ready | crashed
     this.logRing = [];
@@ -200,6 +212,7 @@ export class DevServer {
         path: this.readyPath,
         statuses: this.readyStatuses,
         signal: abortReady.signal,
+        paneOrigin: this.paneOrigin,
       });
     } catch (err) {
       if (this.state === "crashed") {
@@ -218,6 +231,7 @@ export class DevServer {
       port: this.port,
       path: this.readyPath,
       daemonPort: this.daemonPort,
+      paneOrigin: this.paneOrigin,
     });
     this.state = "ready";
     return this;

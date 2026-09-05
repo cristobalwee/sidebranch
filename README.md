@@ -130,9 +130,42 @@ toolbar button that undoes it is the extension's.
                                         //   overrides inherited values; PORT etc. are reserved
   "lockfiles": ["package-lock.json"],   // override the manifest list if needed
   "widget": true,                       // false → /widget.js serves a no-op
-  "frameProxy": true                    // false → compare view frames panes directly
+  "frameProxy": true,                   // false → compare view frames panes directly
+  "paneOrigin": null                    // { scheme, hostname } a pane answers on;
+                                        //   null = http://localhost
 }
 ```
+
+### `paneOrigin` — panes that only answer on a name, or on TLS
+
+By default sidebranch addresses a pane as `http://localhost:<port>`. Some dev
+servers can't be reached that way: an app whose auth or API is pinned to a
+domain (cookies scoped to it, an origin allowlist upstream) has to be loaded
+from that name, and one that binds TLS won't answer plain http at all. The
+readiness probe times out and the compare view frames nothing.
+
+`paneOrigin` tells sidebranch how a pane is addressed:
+
+```jsonc
+"paneOrigin": { "scheme": "https", "hostname": "local.app.test" }
+```
+
+The hostname must already resolve to a loopback address — a `/etc/hosts` entry
+pointing at `127.0.0.1` — and `sidebranch start` refuses to run if it doesn't.
+Sidebranch still dials `127.0.0.1` for its probes and still binds loopback
+only; the hostname sets SNI and the URL the browser is handed. A self-signed
+or locally-trusted certificate is fine, because the probe is not what
+establishes trust — the socket destination is.
+
+Two consequences worth knowing:
+
+- **View ports turn off.** They serve on `localhost` and so cannot preserve a
+  custom origin; framing a pane through one would defeat the point. Setting
+  `"frameProxy": true` alongside `paneOrigin` is a config error rather than a
+  silent override.
+- **The widget stays loopback-only.** It self-disables unless the *page* it
+  runs on is loopback — that's what makes a production-shipped `<script>` tag
+  inert — so a pane on a named origin is driven from `/shell`, not the pill.
 
 Recipes:
 

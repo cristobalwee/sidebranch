@@ -39,6 +39,36 @@ non-local can ever reach in**.
    runs a mutating git command outside its own worktrees under
    `~/.sidebranch/`.
 
+## Named pane origins (`paneOrigin`)
+
+A pane's dev server is a command the repo owner already chose to run; it has
+never been inside the daemon's trust boundary. `paneOrigin` changes only how
+sidebranch *addresses* one — the URL handed to the browser, and the scheme its
+own probes speak — for apps whose dev server answers on a name, on TLS, or
+both.
+
+None of the eight invariants above move. The daemon still binds `127.0.0.1`,
+still checks every peer address, and still rejects any `Host` or `Origin`
+that is not loopback. The probes still dial `127.0.0.1`; the configured
+hostname only sets SNI. The widget's own gate is unchanged, so it stays inert
+on a named origin exactly as it is in production, and such panes are driven
+from `/shell`.
+
+Two things constrain what can be configured:
+
+- `sidebranch start` resolves the hostname and **refuses to start unless every
+  address it maps to is loopback**. A name that resolves off-box cannot be
+  configured at all, so the shell can never be pointed at a remote origin.
+- The shell's CSP gains exactly one source, `<scheme>://<hostname>:*`, in
+  `frame-src` only. `connect-src` is untouched: the shell still talks to
+  nothing but the daemon.
+
+The probe sets `rejectUnauthorized: false`, because a locally-trusted
+development certificate is the normal case and Node does not read the system
+trust store. This is not a downgrade: the socket destination (`127.0.0.1`, a
+port sidebranch itself allocated and spawned a child onto) is what establishes
+trust here, not the certificate chain.
+
 ## Token delivery
 
 The token reaches a browser two ways, and both are unauthenticated by

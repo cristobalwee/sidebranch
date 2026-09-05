@@ -16,7 +16,7 @@ import * as gitops from "./gitops.js";
 import { lockfileHash, runInstall } from "./install.js";
 import { allocatePort, DevServer } from "./processes.js";
 import { FrameProxy } from "./proxy.js";
-import { projectDataDir } from "./config.js";
+import { paneUrl, projectDataDir } from "./config.js";
 
 export class Manager extends EventEmitter {
   constructor({ repoRoot, config }) {
@@ -147,6 +147,7 @@ export class Manager extends EventEmitter {
             readyPath: this.config.ready.path,
             readyStatuses: this.config.ready.statuses,
             daemonPort: this.daemonPort,
+            paneOrigin: this.config.paneOrigin,
           });
         }
         if (!pane.viewProxy && this.config.frameProxy) {
@@ -254,7 +255,7 @@ function paneInfo(p) {
     port: p.server?.port ?? null,
     serverState: p.server?.state ?? "stopped",
     framing: p.server?.framing ?? null,
-    url: p.server ? `http://localhost:${p.server.port}/` : null,
+    url: p.server ? paneUrl(p.server.paneOrigin, p.server.port) : null,
     viewUrl: p.viewProxy ? `http://localhost:${p.viewProxy.port}/` : null,
   };
 }

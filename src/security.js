@@ -26,6 +26,7 @@
  */
 
 import crypto from "node:crypto";
+import dns from "node:dns/promises";
 import net from "node:net";
 
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
@@ -47,6 +48,17 @@ export function isLoopbackHostname(hostname) {
   if (LOOPBACK_HOSTNAMES.has(h)) return true;
   if (net.isIPv4(h)) return h.startsWith("127.");
   return false;
+}
+
+export async function resolvesToLoopbackOnly(hostname) {
+  if (isLoopbackHostname(hostname)) return true;
+  let records;
+  try {
+    records = await dns.lookup(hostname, { all: true });
+  } catch {
+    return false;
+  }
+  return records.length > 0 && records.every((r) => isLoopbackAddress(r.address));
 }
 
 /**

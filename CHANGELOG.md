@@ -7,6 +7,14 @@ Notable changes to sidebranch. This project follows
 
 ### Added
 
+- **`paneOrigin` config** — address panes on a hostname, over TLS, or both, for
+  dev servers that don't answer as `http://localhost:<port>` (auth or cookies
+  pinned to a domain, a server that binds TLS). Sidebranch still binds and
+  probes loopback; the hostname sets SNI and the URL the browser is given, and
+  `start` refuses a hostname that resolves anywhere but loopback. View ports
+  turn off with it, since they serve on `localhost` and cannot preserve a
+  custom origin. No security invariant changes — see `SECURITY.md`.
+
 - **Browser extension** (`extension/`) — a second delivery channel for the
   widget: install once and every project you run `sidebranch start` in gets
   the pill, with no `<script>` tag in your app. MV3, published on the

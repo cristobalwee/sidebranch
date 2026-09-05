@@ -248,7 +248,7 @@ export class Daemon {
         "script-src 'unsafe-inline'",
         "style-src 'unsafe-inline'",
         "connect-src http://localhost:* http://127.0.0.1:*",
-        "frame-src http://localhost:* http://127.0.0.1:*",
+        `frame-src http://localhost:* http://127.0.0.1:*${paneFrameSource(this.manager.config.paneOrigin)}`,
         "font-src http://localhost:* http://127.0.0.1:*",
         "img-src data:",
         "base-uri 'none'",
@@ -318,6 +318,11 @@ function readJson(req, limit = 64 * 1024) {
     });
     req.on("error", reject);
   });
+}
+
+export function paneFrameSource(paneOrigin) {
+  if (!paneOrigin) return "";
+  return ` ${paneOrigin.scheme}://${paneOrigin.hostname}:*`;
 }
 
 export { isValidPort };

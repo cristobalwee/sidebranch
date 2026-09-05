@@ -26,6 +26,7 @@ export const DEFAULTS = {
   env: {},                         // extra env vars injected into the pane dev command
   widget: true,                    // set false to make /widget.js serve a no-op
   frameProxy: true,                // set false to disable the compare view's header-stripping view ports
+  paneOrigin: null,                // { scheme, hostname } a pane dev server answers on; null = http://localhost
 };
 
 // Env names sidebranch owns and injects itself (see processes.js). Config
@@ -58,10 +59,37 @@ export function normalize(raw) {
   cfg.copy = cfg.copy.filter((f) => typeof f === "string" && !f.includes("..") && !path.isAbsolute(f));
   cfg.env = normalizeEnv(cfg.env);
   cfg.widget = cfg.widget !== false;
-  cfg.frameProxy = cfg.frameProxy !== false;
+  cfg.paneOrigin = normalizePaneOrigin(cfg.paneOrigin);
+  if (cfg.paneOrigin && raw.frameProxy === true) {
+    throw new Error(`"frameProxy" cannot be true alongside "paneOrigin": view ports serve on localhost and cannot preserve a custom origin`);
+  }
+  cfg.frameProxy = cfg.frameProxy !== false && cfg.paneOrigin === null;
   if (cfg.ready.statuses !== null && !Array.isArray(cfg.ready.statuses)) cfg.ready.statuses = null;
   if (typeof cfg.ready.path !== "string" || !cfg.ready.path.startsWith("/")) cfg.ready.path = "/";
   return cfg;
+}
+
+const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
+
+export function normalizePaneOrigin(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`"paneOrigin" must be an object with "scheme" and "hostname"`);
+  }
+  const scheme = raw.scheme ?? "http";
+  if (scheme !== "http" && scheme !== "https") {
+    throw new Error(`"paneOrigin.scheme" must be "http" or "https", got ${JSON.stringify(raw.scheme)}`);
+  }
+  const hostname = typeof raw.hostname === "string" ? raw.hostname.trim().toLowerCase() : "";
+  if (!HOSTNAME.test(hostname)) {
+    throw new Error(`"paneOrigin.hostname" must be a hostname, got ${JSON.stringify(raw.hostname)}`);
+  }
+  return { scheme, hostname };
+}
+
+export function paneUrl(paneOrigin, port) {
+  const { scheme, hostname } = paneOrigin ?? { scheme: "http", hostname: "localhost" };
+  return `${scheme}://${hostname}:${port}/`;
 }
 
 /**

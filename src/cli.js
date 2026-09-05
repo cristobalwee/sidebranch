@@ -7,6 +7,7 @@ import path from "node:path";
 import readline from "node:readline";
 
 import { loadConfig, CONFIG_FILENAME, DEFAULTS, projectDataDir } from "./config.js";
+import { resolvesToLoopbackOnly } from "./security.js";
 import * as gitops from "./gitops.js";
 import { Manager } from "./manager.js";
 import { Daemon } from "./daemon.js";
@@ -105,6 +106,12 @@ async function start({ port }) {
   }
 
   const config = await loadConfig(root);
+  if (config.paneOrigin && !(await resolvesToLoopbackOnly(config.paneOrigin.hostname))) {
+    throw new Error(
+      `paneOrigin.hostname "${config.paneOrigin.hostname}" does not resolve to a loopback address. ` +
+      `Add it to /etc/hosts pointing at 127.0.0.1, or remove paneOrigin from ${CONFIG_FILENAME}.`
+    );
+  }
   const manager = new Manager({ repoRoot: root, config });
   const daemon = new Daemon({ manager, port });
   await daemon.start();
@@ -301,7 +308,8 @@ async function doctor() {
     push("git repository", true, root);
     try {
       const cfg = await loadConfig(root);
-      push(`${CONFIG_FILENAME}`, true, `dev="${cfg.dev}"  install="${cfg.install}"`);
+      const origin = cfg.paneOrigin ? `  panes=${cfg.paneOrigin.scheme}://${cfg.paneOrigin.hostname}` : "";
+      push(`${CONFIG_FILENAME}`, true, `dev="${cfg.dev}"  install="${cfg.install}"${origin}`);
     } catch (e) {
       push(CONFIG_FILENAME, false, e.message);
     }
